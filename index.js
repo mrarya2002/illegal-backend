@@ -2,6 +2,10 @@ const express = require("express");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 const cors = require("cors"); // import
+const path = require("path");
+
+// Serve uploaded episode images
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 dotenv.config();
 connectDB();
