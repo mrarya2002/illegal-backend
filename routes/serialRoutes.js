@@ -1,41 +1,16 @@
 const express = require("express");
 const router = express.Router();
-const path = require("path");
 const multer = require("multer");
 const Serial = require("../models/Serial");
 const Episode = require("../models/Episode");
 const auth = require("../middleware/authMiddleware");
-const fs = require('fs');
+const imagekit = require("../config/imagekit"); // ImageKit configuration
 
-// Ensure uploads/episodes folder exists
-const uploadDir = path.join(__dirname, '../uploads/episodes');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
 // ---------------------- MULTER CONFIG ----------------------
 
-// Storage configuration
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/episodes"); // Save to backend folder
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
-});
-
-// File filter to allow images only
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|gif/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
-
-  if (mimetype && extname) return cb(null, true);
-  cb(new Error("Only image files are allowed"));
-};
-
-const upload = multer({ storage, fileFilter });
+// Use memory storage since we'll upload directly to ImageKit
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 // ---------------------- SERIAL ROUTES ----------------------
 
@@ -96,7 +71,7 @@ router.delete("/:id", auth, async (req, res) => {
 
 // ---------------------- EPISODE ROUTES ----------------------
 
-// Public: get all episodes for serial
+// Public: get all episodes for a serial
 router.get("/:id/episodes", async (req, res) => {
   try {
     const episodes = await Episode.find({ serialId: req.params.id }).sort({ episodeNo: 1 });
@@ -117,15 +92,26 @@ router.get("/episodes/:id", async (req, res) => {
   }
 });
 
-// Admin: add episode with image upload
+// Admin: add episode with ImageKit upload
 router.post("/:id/episodes", auth, upload.single("image"), async (req, res) => {
   try {
-    const imageUrl = req.file ? `/uploads/episodes/${req.file.filename}` : "";
+    let imageUrl = "";
+
+    if (req.file) {
+      const result = await imagekit.upload({
+        file: req.file.buffer,
+        fileName: `episode-${Date.now()}-${req.file.originalname}`,
+        folder: "/episodes",
+      });
+      imageUrl = result.url;
+    }
+
     const episode = new Episode({
       ...req.body,
       serialId: req.params.id,
       image: imageUrl,
     });
+
     await episode.save();
     res.json({ success: true, msg: "Episode added successfully", data: episode });
   } catch (err) {
@@ -138,9 +124,19 @@ router.post("/:id/episodes", auth, upload.single("image"), async (req, res) => {
 router.put("/episodes/:id", auth, upload.single("image"), async (req, res) => {
   try {
     const updateData = { ...req.body };
-    if (req.file) updateData.image = `/uploads/episodes/${req.file.filename}`;
+
+    if (req.file) {
+      const result = await imagekit.upload({
+        file: req.file.buffer,
+        fileName: `episode-${Date.now()}-${req.file.originalname}`,
+        folder: "/episodes",
+      });
+      updateData.image = result.url;
+    }
+
     const episode = await Episode.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!episode) return res.status(404).json({ success: false, msg: "Episode not found" });
+
     res.json({ success: true, msg: "Episode updated successfully", data: episode });
   } catch (err) {
     console.error(err);

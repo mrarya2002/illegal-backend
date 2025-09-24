@@ -1,8 +1,7 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
-const cors = require("cors"); // import
-const path = require("path");
+const cors = require("cors");
 
 
 dotenv.config();
@@ -10,9 +9,6 @@ connectDB();
 
 const app = express();
 app.use(express.json());
-
-// Serve uploaded episode images
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Enable CORS
 app.use(cors({
