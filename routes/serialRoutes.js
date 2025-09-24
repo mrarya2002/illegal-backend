@@ -5,7 +5,13 @@ const multer = require("multer");
 const Serial = require("../models/Serial");
 const Episode = require("../models/Episode");
 const auth = require("../middleware/authMiddleware");
+const fs = require('fs');
 
+// Ensure uploads/episodes folder exists
+const uploadDir = path.join(__dirname, '../uploads/episodes');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 // ---------------------- MULTER CONFIG ----------------------
 
 // Storage configuration
